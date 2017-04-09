@@ -3,8 +3,6 @@ import yaml, os, collections, pprint, sys
 D = collections.defaultdict(int)
 
 def analyze_section(section):
-    print '=='*50
-    pprint.pprint(section)
     if 'header' not in section:
         return
     for ch in section['header']['characters']:
@@ -14,7 +12,6 @@ folder = sys.argv[1]
 for filename in sorted(os.listdir(folder)):
     lyrics = yaml.load(open(os.path.join(folder, filename)))['lyrics']
     for section in lyrics:
-        print section
         if 'stage_direction' in section:
             continue
         elif 'simultaneous' in section:
