@@ -12,7 +12,7 @@ def analyze_section(section):
         print section
         print
         missing_headers += 1
-    elif 'characters' not in section['header']:
+    elif 'characters' not in section['header'] and len(section.get('lines', []))>0:
         print 'No chars'
         print section
         print
