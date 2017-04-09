@@ -149,6 +149,22 @@ def parse_characters(s):
         D['characters'] = c
     return D
 
+def create_entry(header, lines, sections):
+    for i, line in enumerate(lines):
+        try:
+            lines[i] = str(line)
+        except:
+            None
+    entry = {'lines': lines}
+    if header:
+        if 'characters' not in header and 'stage_direction' in header and len(sections)>0:
+            last_header = sections[-1].get('header', {})
+            if 'characters' in last_header:
+                sections.append({'header': header})
+                header = {'characters': last_header['characters']}
+        entry['header']=header
+    sections.append(entry)
+
 def parse_lyrics(s, config):
     header = None
     sections = []
@@ -164,10 +180,7 @@ def parse_lyrics(s, config):
         m2 = '<table' in line
         
         if (m0 or m1 or m2) and len(lines)>0:
-            entry = {'lines': lines}
-            if header:
-                entry['header']=header
-            sections.append(entry)
+            create_entry(header, lines, sections)
             lines = []
         
         if len(table)>0:
@@ -214,20 +227,13 @@ def parse_lyrics(s, config):
             #print line
 
     if len(lines)>0:
-        for i, line in enumerate(lines):
-            try:
-                lines[i] = str(line)
-            except:
-                None
-        entry = {'lines': lines}
-        if header:
-            entry['header']=header
-        sections.append(entry)
+        create_entry(header, lines, sections)
     return sections
 
 import argparse, os.path
 parser = argparse.ArgumentParser()
 parser.add_argument('config')
+parser.add_argument('filter', nargs='?')
 parser.add_argument('-l', '--list', action='store_true')
 parser.add_argument('-d', '--download_songs', action='store_true')
 parser.add_argument('-p', '--parse', action='store_true')
@@ -245,6 +251,8 @@ if args.list:
 
 for song in sorted(os.listdir(slug)):
     fn = os.path.join(slug, song)
+    if args.filter and args.filter not in fn:
+        continue
     song_config = yaml.load(open(fn))
     if args.download_songs:
         if 'raw_text' not in song_config or args.force:
