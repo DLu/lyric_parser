@@ -211,6 +211,9 @@ import argparse, os.path
 parser = argparse.ArgumentParser()
 parser.add_argument('config')
 parser.add_argument('-l', '--list', action='store_true')
+parser.add_argument('-d', '--download_songs', action='store_true')
+parser.add_argument('-p', '--parse', action='store_true')
+parser.add_argument('-f', '--force', action='store_true')
 
 args = parser.parse_args()
 slug = os.path.splitext(args.config)[0]
@@ -221,9 +224,14 @@ if args.list:
     for track in get_tracklist(config['url']):
         fn = '%s/%02d-%s.yaml'%(slug, track['track_no'], re.sub(r'\W+', '', track['title']))
         yaml.dump(track, open(fn, 'w'))
-        
-#s = download_url(EMBED_PATTERN % '357017')
-#x = embed_to_clean_text(s)
-#print x
-#import pprint
-#pprint.pprint(parse_lyrics(x))
+
+for song in sorted(os.listdir(slug)):
+    fn = os.path.join(slug, song)
+    song_config = yaml.load(open(fn))
+    if args.download_songs:
+        if 'raw_text' not in song_config or args.force:
+            s = download_url(EMBED_PATTERN % song_config['genius_id'])
+            song_config['raw_text'] = embed_to_clean_text(s)
+    if args.parse and 'raw_text' in song_config:
+        song_config['lyrics'] = parse_lyrics(song_config['raw_text'])
+    yaml.dump(song_config, open(fn, 'w'))
