@@ -2,7 +2,7 @@
 import bs4
 from bs4 import BeautifulSoup
 import re, yaml
-import urllib
+import urllib2
 
 EMBED_PATTERN = 'http://genius.com/songs/%s/embed.js'
 JSON_PATTERN = re.compile("JSON\.parse\('(.*)'\)\)\s+document.write", re.DOTALL)
@@ -26,23 +26,43 @@ REPLACEMENTS = {
     '</small>': '',
 }
 
+def download_url(url):
+    opener = urllib2.build_opener()
+    opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+    response = opener.open(url)
+    return response.read()
+
+def get_element(tag, subtype, attribute, value):
+    for item in tag.find_all(subtype):
+        if value in item.get(attribute, ''):
+            return item
+
 def get_tracklist(url):
-    html_doc = open('Les-miserables-1987-original-broadway-cast')#urllib.urlopen(url).read()
+    html_doc = download_url(url)
+    #html_doc = open('Les-miserables-1987-original-broadway-cast')#urllib.urlopen(url).read()
     soup = BeautifulSoup(html_doc, 'html.parser')
-    track_list = None
-    for ul in soup.find_all('ul'):
-        if 'song_list' in ul.get('class', 'x'):
-            track_list = ul
-            break
+    track_list = get_element(soup, 'ul', 'class', 'song_list')
     if track_list is None:
         return None
     tracks = []
     for item in track_list.children:
         if type(item)==bs4.element.NavigableString:
             continue
+        D = {}
         id = item.get('data-id', '')
-        if len(id)>0:
-            tracks.append(item['data-id'])
+        if len(id)==0:
+            continue
+        D['genius_id'] = item['data-id']
+        title = get_element(item, 'span', 'class', 'song_title')
+        if title:
+            D['title'] = title.text
+        number = get_element(item, 'span', 'class', 'track_number')
+        if number:
+            text = number.text.replace('.', '')
+            D['track_no'] = int(text)
+
+        tracks.append(D)
+
     return tracks
 
 def embed_to_clean_text(text):
@@ -174,11 +194,13 @@ def parse_lyrics(s):
         sections.append(entry)
     return sections
 
-x = embed_to_clean_text(open('embed.js.1').read())
-print x
-import pprint
-pprint.pprint(parse_lyrics(x))
+#s = download_url(EMBED_PATTERN % '357017')
+#x = embed_to_clean_text(s)
+#print x
+#import pprint
+#pprint.pprint(parse_lyrics(x))
 
 
-#print get_tracklist('https://genius.com/albums/Les-miserables-original-broadway-cast/Les-miserables-1987-original-broadway-cast')
+for x in get_tracklist('https://genius.com/albums/Les-miserables-original-broadway-cast/Les-miserables-1987-original-broadway-cast'):
+    print x
 
