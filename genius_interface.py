@@ -120,7 +120,8 @@ def parse_character_list(s):
             x += s.split(splitter)
         c = x
     full_list = []
-    for ss in map(str.strip, c):
+    for ss in c:
+        ss = ss.strip()
         if len(ss)==0:
             continue
         #full_list += translate(ss.upper())
@@ -169,17 +170,16 @@ def parse_lyrics(s, config):
             if '</table>' in line:
                 table.append(line)
                 table_s = '\n'.join(table)
-                
+                table = BeautifulSoup(table_s, 'html.parser')
+                cols = []
+                for row in table.find_all('tr'):
+                    for i, cell in enumerate(row.find_all('td')):
+                        if i >= len(cols):
+                            cols.append([])
+                        cols[i].append(cell.text)
                 chunks = []
-                index = 0
-                while '<td' in table_s[index:]:
-                    i = table_s.index('<td', index)
-                    i2 = table_s.index('>', i)
-                    i3 = table_s.index('</td>', i2)
-                    contents = table_s[i2+1:i3]
-                    index = i3
-                    chunks.append(parse_lyrics(contents, config))
-                    #body = body[:i] + body[i2+1:i3] + body[i3+4:]
+                for col in cols:
+                    chunks.append(parse_lyrics('\n'.join(col), config))
                 sections.append({'simultaneous': chunks})
                 table = []
             else:
