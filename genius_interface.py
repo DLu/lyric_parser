@@ -8,7 +8,9 @@ EMBED_PATTERN = 'http://genius.com/songs/%s/embed.js'
 JSON_PATTERN = re.compile("JSON\.parse\('(.*)'\)\)\s+document.write", re.DOTALL)
 SPLIT_LINE = re.compile('(\[[^\]]+)\n([^\]]+\])')
 CHAR_LINE = re.compile('\[([^\]]+)\]')
+LOWERCASE = re.compile('[a-z]')
 STAGE_DIRECTION = re.compile('\(<i>([^<]+)</i>\)')
+STAGE_DIRECTION2 = re.compile('\(([^\)]+)\)')
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
 REPLACEMENTS = {
@@ -142,7 +144,7 @@ def parse_characters(s):
         D['characters'] = c
     return D
 
-def parse_lyrics(s):
+def parse_lyrics(s, config):
     header = None
     sections = []
     lines = []
@@ -176,7 +178,7 @@ def parse_lyrics(s):
                     i3 = table_s.index('</td>', i2)
                     contents = table_s[i2+1:i3]
                     index = i3
-                    chunks.append(parse_lyrics(contents))
+                    chunks.append(parse_lyrics(contents, config))
                     #body = body[:i] + body[i2+1:i3] + body[i3+4:]
                 sections.append({'simultaneous': chunks})
                 table = []
@@ -187,11 +189,18 @@ def parse_lyrics(s):
             
             char_s = m0.group(1)
             m = STAGE_DIRECTION.search(char_s)
+            m2 = STAGE_DIRECTION2.search(char_s)
             if m:
                 char_s = char_s.replace(m.group(0), '').strip()
                 header['stage_direction'] = m.group(1)
-                
-            header.update( parse_characters(char_s))
+            elif m2:
+                char_s = char_s.replace(m2.group(0), '').strip()
+                header['stage_direction'] = m2.group(1)
+            
+            if config.get('require_caps_characters', False) and LOWERCASE.search(char_s):
+                header['stage_direction'] = header.get('stage_direction', '') + char_s
+            else:
+                header.update( parse_characters(char_s))
         elif m1:
             sections.append({'stage_direction': m1.group(1)})
         elif m2:
@@ -233,5 +242,5 @@ for song in sorted(os.listdir(slug)):
             s = download_url(EMBED_PATTERN % song_config['genius_id'])
             song_config['raw_text'] = embed_to_clean_text(s)
     if args.parse and 'raw_text' in song_config:
-        song_config['lyrics'] = parse_lyrics(song_config['raw_text'])
+        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config)
     yaml.dump(song_config, open(fn, 'w'))
