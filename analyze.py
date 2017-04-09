@@ -3,7 +3,7 @@ import yaml, os, collections, pprint, sys
 D = collections.defaultdict(int)
 
 def analyze_section(section):
-    if 'header' not in section:
+    if 'header' not in section or 'characters' not in section['header']:
         return
     for ch in section['header']['characters']:
         D[ch]+=len(section['lines'])
