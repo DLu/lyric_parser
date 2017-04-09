@@ -39,7 +39,7 @@ def get_element(tag, subtype, attribute, value):
 
 def get_tracklist(url):
     html_doc = download_url(url)
-    #html_doc = open('Les-miserables-1987-original-broadway-cast')#urllib.urlopen(url).read()
+    #html_doc = open('Les-miserables-1987-original-broadway-cast')
     soup = BeautifulSoup(html_doc, 'html.parser')
     track_list = get_element(soup, 'ul', 'class', 'song_list')
     if track_list is None:
@@ -52,10 +52,13 @@ def get_tracklist(url):
         id = item.get('data-id', '')
         if len(id)==0:
             continue
-        D['genius_id'] = item['data-id']
+        D['genius_id'] = str(item['data-id'])
         title = get_element(item, 'span', 'class', 'song_title')
         if title:
-            D['title'] = title.text
+            if title.text == str(title.text):
+                D['title'] = str(title.text)
+            else:
+                D['title'] = title.text
         number = get_element(item, 'span', 'class', 'track_number')
         if number:
             text = number.text.replace('.', '')
@@ -194,13 +197,23 @@ def parse_lyrics(s):
         sections.append(entry)
     return sections
 
+import argparse, os.path
+parser = argparse.ArgumentParser()
+parser.add_argument('config')
+parser.add_argument('-l', '--list', action='store_true')
+
+args = parser.parse_args()
+slug = os.path.splitext(args.config)[0]
+if not os.path.exists(slug):
+    os.mkdir(slug)
+config = yaml.load(open(args.config))
+if args.list:
+    for track in get_tracklist(config['url']):
+        fn = '%s/%02d-%s.yaml'%(slug, track['track_no'], re.sub(r'\W+', '', track['title']))
+        yaml.dump(track, open(fn, 'w'))
+        
 #s = download_url(EMBED_PATTERN % '357017')
 #x = embed_to_clean_text(s)
 #print x
 #import pprint
 #pprint.pprint(parse_lyrics(x))
-
-
-for x in get_tracklist('https://genius.com/albums/Les-miserables-original-broadway-cast/Les-miserables-1987-original-broadway-cast'):
-    print x
-
