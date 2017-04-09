@@ -124,6 +124,10 @@ def parse_character_list(s):
         ss = ss.strip()
         if len(ss)==0:
             continue
+        try:
+            ss = str(ss)
+        except:
+            None
         #full_list += translate(ss.upper())
         full_list.append(ss.upper())
     #print full_list
@@ -210,6 +214,11 @@ def parse_lyrics(s, config):
             #print line
 
     if len(lines)>0:
+        for i, line in enumerate(lines):
+            try:
+                lines[i] = str(line)
+            except:
+                None
         entry = {'lines': lines}
         if header:
             entry['header']=header
