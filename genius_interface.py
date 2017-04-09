@@ -27,6 +27,7 @@ REPLACEMENTS = {
 }
 
 def download_url(url):
+    print 'Downloading %s...'%url
     opener = urllib2.build_opener()
     opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
     response = opener.open(url)
@@ -65,6 +66,15 @@ def get_tracklist(url):
             D['track_no'] = int(text)
 
         tracks.append(D)
+
+    pagination = get_element(soup, 'div', 'class', 'pagination')
+    if pagination:
+        next = get_element(pagination, 'a', 'class', 'next_page')
+        if next and 'disabled' not in next['class']:
+            url = next['href']
+            if url[0]=='/':
+                url = 'https://genius.com' + url
+            tracks += get_tracklist(url)
 
     return tracks
 
