@@ -110,9 +110,13 @@ def embed_to_clean_text(text):
 
     return body
 
-def parse_character_list(s):
+def parse_character_list(s, config):
     if ':' in s:
         s = s[s.index(':')+1:]
+    s = s.upper()
+    if s in config['char_translations']:
+        s = config['char_translations'][s]
+
     c = [s]
     for splitter in [' & ', '/', ' AND ']:
         x = []
@@ -128,12 +132,13 @@ def parse_character_list(s):
             ss = str(ss)
         except:
             None
-        #full_list += translate(ss.upper())
-        full_list.append(ss.upper())
-    #print full_list
+        if ss in config['char_translations']:
+            full_list += parse_character_list(config['char_translations'][ss], config)
+        else:
+            full_list.append(ss)
     return full_list
 
-def parse_characters(s):
+def parse_characters(s, config):
     D = {}
     m = PARENTHETICAL.match(s)
     if m:
@@ -143,8 +148,8 @@ def parse_characters(s):
         
     if 'EXCEPT' in s:
         s, _, except_s = s.partition('EXCEPT')
-        D['except'] = parse_character_list(except_s)
-    c = parse_character_list(s)
+        D['except'] = parse_character_list(except_s, config)
+    c = parse_character_list(s, config)
     if len(c)>0:
         D['characters'] = c
     return D
@@ -157,11 +162,14 @@ def create_entry(header, lines, sections):
             None
     entry = {'lines': lines}
     if header:
-        if 'characters' not in header and 'stage_direction' in header and len(sections)>0:
+        if 'characters' not in header and len(sections)>0:
             last_header = sections[-1].get('header', {})
-            if 'characters' in last_header:
+            if 'characters' not in last_header and len(sections)>1:
+                last_header = sections[-2].get('header', {})
+                print last_header
+            if 'characters' not in last_header:
                 sections.append({'header': header})
-                header = {'characters': last_header['characters']}
+                header = {'characters': list(last_header['characters'])}
         entry['header']=header
     sections.append(entry)
 
@@ -215,9 +223,11 @@ def parse_lyrics(s, config):
                 header['stage_direction'] = m2.group(1)
             
             if config.get('require_caps_characters', False) and LOWERCASE.search(char_s):
-                header['stage_direction'] = header.get('stage_direction', '') + char_s
+                sd = header.get('stage_direction', '') + char_s
+                sections.append({'stage_direction': sd})
+                header = {}                
             else:
-                header.update( parse_characters(char_s))
+                header.update( parse_characters(char_s, config))
         elif m1:
             sections.append({'stage_direction': m1.group(1)})
         elif m2:
@@ -244,6 +254,17 @@ slug = os.path.splitext(args.config)[0]
 if not os.path.exists(slug):
     os.mkdir(slug)
 config = yaml.load(open(args.config))
+
+# Rewrite Equivalent Chars
+if 'char_translations' not in config:
+    config['char_translations'] = {}
+for key, row in config.get('equivalent_chars', {}).iteritems():
+    if type(row)==str:
+        config['char_translations'][row] = key
+    else:
+        for a in row:
+            config['char_translations'][a] = key
+
 if args.list:
     for track in get_tracklist(config['url']):
         fn = '%s/%02d-%s.yaml'%(slug, track['track_no'], re.sub(r'\W+', '', track['title']))
