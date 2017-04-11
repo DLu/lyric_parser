@@ -6,7 +6,8 @@ def analyze_section(section):
     if 'header' not in section or 'characters' not in section['header']:
         return
     for ch in section['header']['characters']:
-        D[ch]+=len(section['lines'])
+        for line in section['lines']:
+            D[ch]+=len(line.split())
 
 folder = sys.argv[1]
 for filename in sorted(os.listdir(folder)):
