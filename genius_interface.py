@@ -113,7 +113,6 @@ def embed_to_clean_text(text):
 def parse_character_list(s, config):
     if ':' in s:
         s = s[s.index(':')+1:]
-    s = s.upper()
     if s in config['char_translations']:
         s = config['char_translations'][s]
 
@@ -140,10 +139,13 @@ def parse_character_list(s, config):
 
 def parse_characters(s, config):
     D = {}
+    s = s.upper()
+    if s in config['char_translations']:
+        s = config['char_translations'][s]
     m = PARENTHETICAL.match(s)
     if m:
-        D.update(parse_characters(m.group(1)))
-        D.update(parse_characters(m.group(2)))
+        D.update(parse_characters(m.group(1), config))
+        D['stage_direction'] = m.group(2)
         return D
         
     if 'EXCEPT' in s:
@@ -161,15 +163,15 @@ def create_entry(header, lines, sections):
         except:
             None
     entry = {'lines': lines}
-    if header:
-        if 'characters' not in header and len(sections)>0:
-            last_header = sections[-1].get('header', {})
-            if 'characters' not in last_header and len(sections)>1:
-                last_header = sections[-2].get('header', {})
-                print last_header
-            if 'characters' not in last_header:
-                sections.append({'header': header})
-                header = {'characters': list(last_header['characters'])}
+    if header is None:
+        header = {}
+    if 'characters' not in header and len(sections)>0:
+        last_header = sections[-1].get('header', {})
+        if 'characters' not in last_header and len(sections)>1:
+            last_header = sections[-2].get('header', {})
+        if 'characters' in last_header:
+            header['characters'] =  list(last_header['characters'])
+    if len(header)>0:
         entry['header']=header
     sections.append(entry)
 
