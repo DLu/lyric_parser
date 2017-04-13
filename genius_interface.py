@@ -9,8 +9,11 @@ JSON_PATTERN = re.compile("JSON\.parse\('(.*)'\)\)\s+document.write", re.DOTALL)
 SPLIT_LINE = re.compile('(\[[^\]]+)\n([^\]]+\])')
 CHAR_LINE = re.compile('\[([^\]]+)\]')
 LOWERCASE = re.compile('[a-z]')
-STAGE_DIRECTION = re.compile('\(<i>([^<]+)</i>\)')
-STAGE_DIRECTION2 = re.compile('\(([^\)]+)\)')
+STAGE_DIRECTION = [
+    re.compile('\(<i>([^<]+)</i>\)'),
+    re.compile('\(([^\)]+)\)'),
+    re.compile('<b>\[([^\)]+)\]</b>')
+]
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
 REPLACEMENTS = {
@@ -175,6 +178,18 @@ def create_entry(header, lines, sections):
         entry['header']=header
     sections.append(entry)
 
+def match_stage_direction(line):
+    for pattern in STAGE_DIRECTION:
+        m = pattern.match(line)
+        if m:
+            return m
+
+def search_stage_direction(line):
+    for pattern in STAGE_DIRECTION:
+        m = pattern.search(line)
+        if m:
+            return m
+
 def parse_lyrics(s, config):
     header = None
     sections = []
@@ -186,7 +201,7 @@ def parse_lyrics(s, config):
         if len(line)==0:
             continue
         m0 = CHAR_LINE.match(line)
-        m1 = STAGE_DIRECTION.match(line)
+        m1 = match_stage_direction(line)
         m2 = '<table' in line
         
         if (m0 or m1 or m2) and len(lines)>0:
@@ -215,14 +230,10 @@ def parse_lyrics(s, config):
             header = {}
             
             char_s = m0.group(1)
-            m = STAGE_DIRECTION.search(char_s)
-            m2 = STAGE_DIRECTION2.search(char_s)
+            m = search_stage_direction(char_s)
             if m:
                 char_s = char_s.replace(m.group(0), '').strip()
                 header['stage_direction'] = m.group(1)
-            elif m2:
-                char_s = char_s.replace(m2.group(0), '').strip()
-                header['stage_direction'] = m2.group(1)
             
             if config.get('require_caps_characters', False) and LOWERCASE.search(char_s):
                 sd = header.get('stage_direction', '') + char_s
