@@ -12,7 +12,8 @@ LOWERCASE = re.compile('[a-z]')
 STAGE_DIRECTION = [
     re.compile('\(<i>([^<]+)</i>\)'),
     re.compile('\(([^\)]+)\)'),
-    re.compile('<b>\[([^\)]+)\]</b>')
+    re.compile('<b>\[([^\)]+)\]</b>'),
+    re.compile('<i>\[([^\)]+)\]</i>')
 ]
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
