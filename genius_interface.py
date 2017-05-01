@@ -62,9 +62,9 @@ def get_tracklist(url):
         D['genius_id'] = str(item['data-id'])
         title = get_element(item, 'span', 'class', 'song_title')
         if title:
-            if title.text == str(title.text):
+            try:
                 D['title'] = str(title.text)
-            else:
+            except:
                 D['title'] = title.text
         number = get_element(item, 'span', 'class', 'track_number')
         if number:
@@ -121,7 +121,8 @@ def parse_character_list(s, config):
         s = config['char_translations'][s]
 
     c = [s]
-    for splitter in [' & ', '/', ' AND ']:
+    splitters = config.get('splitters', [' & ', '/', ' AND '])
+    for splitter in splitters:
         x = []
         for s in c:
             x += s.split(splitter)
