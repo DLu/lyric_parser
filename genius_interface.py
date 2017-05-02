@@ -12,8 +12,8 @@ LOWERCASE = re.compile('[a-z]')
 STAGE_DIRECTION = [
     re.compile('\(<i>([^<]+)</i>\)'),
     re.compile('\(([^\)]+)\)'),
-    re.compile('<b>\[([^\)]+)\]</b>'),
-    re.compile('<i>\[([^\)]+)\]</i>')
+    re.compile('<b>\[([^\]]+)\]</b>'),
+    re.compile('<i>\[([^\]]+)\]</i>')
 ]
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
@@ -144,6 +144,10 @@ def parse_character_list(s, config):
 
 def parse_characters(s, config):
     D = {}
+    for direction in ['spoken', 'sung', 'on phone']:
+        key = ', '+direction
+        if key in s:
+            s = s.replace(key, ' (%s)'%direction)
     s = s.upper()
     if s in config['char_translations']:
         s = config['char_translations'][s]
@@ -197,6 +201,10 @@ def parse_lyrics(s, config):
     sections = []
     lines = []
     table = []
+
+    for a,b in config.get('global_translations', {}).iteritems():
+        if a in s:
+            s = s.replace(a,b)
 
     for line in s.split('\n'):
         line = line.strip()
