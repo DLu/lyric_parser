@@ -192,7 +192,7 @@ def search_stage_direction(line):
         if m:
             return m
 
-def parse_lyrics(s, config):
+def parse_lyrics(s, config, global_char=None):
     header = None
     sections = []
     lines = []
@@ -247,6 +247,8 @@ def parse_lyrics(s, config):
                 header = {}
             else:
                 header.update( parse_characters(char_s, config))
+                if global_char:
+                    header['characters'] = [global_char]
         elif m1:
             sections.append({'stage_direction': m1.group(1)})
         elif m2:
@@ -255,6 +257,9 @@ def parse_lyrics(s, config):
             lines.append(line)
             #print line
 
+    if global_char and header is None:
+        header = {}
+        header['characters'] = [global_char]
     if len(lines)>0:
         create_entry(header, lines, sections)
     thus_far = set()
@@ -316,5 +321,5 @@ for song in sorted(os.listdir(slug)):
             s = download_url(EMBED_PATTERN % song_config['genius_id'])
             song_config['raw_text'] = embed_to_clean_text(s)
     if args.parse and 'raw_text' in song_config:
-        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config)
+        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config, song_config.get('global_char', []))
     yaml.dump(song_config, open(fn, 'w'))
