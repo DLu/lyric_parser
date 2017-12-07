@@ -74,6 +74,7 @@ def get_tracklist(url):
     for song in d:
         D = {}
         D['genius_id'] = str(song['song']['id'])
+        song['song']['title'] = song['song']['title'].replace('&#39;', "'")
         D['title'] = str(song['song']['title'].encode('ascii', 'ignore'))
         D['track_no'] = int(song['track_number'] or 100)
         tracks.append(D)
