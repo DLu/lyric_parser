@@ -1,8 +1,10 @@
 #!/usr/bin/python
 import bs4
 from bs4 import BeautifulSoup
+import json
 import re, yaml
 import urllib2
+from util import all_sections
 
 EMBED_PATTERN = 'http://genius.com/songs/%s/embed.js'
 JSON_PATTERN = re.compile("JSON\.parse\('(.*)'\)\)\s+document.write", re.DOTALL)
@@ -11,9 +13,10 @@ CHAR_LINE = re.compile('\[([^\]]+)\]')
 LOWERCASE = re.compile('[a-z]')
 STAGE_DIRECTION = [
     re.compile('\(<i>([^<]+)</i>\)'),
+    re.compile('<i>\(([^\)]+)\)</i>'),
     re.compile('\(([^\)]+)\)'),
     re.compile('<b>\[([^\]]+)\]</b>'),
-    re.compile('<i>\[([^\]]+)\]</i>')
+    re.compile('<i>\[([^\]]+)\]</i>'),
 ]
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
@@ -46,42 +49,34 @@ def get_element(tag, subtype, attribute, value):
 
 def get_tracklist(url):
     html_doc = download_url(url)
-    #html_doc = open('Les-miserables-1987-original-broadway-cast')
-    soup = BeautifulSoup(html_doc, 'html.parser')
-    track_list = get_element(soup, 'ul', 'class', 'song_list')
-    if track_list is None:
-        return None
+    #with open('temp.html', 'w') as f:
+    #    f.write(html_doc)
+    #exit(0)
+    #html_doc = open('temp.html').read()
+    if False:
+        i = html_doc.index('<meta itemprop="page_data"')
+        i2 = html_doc.index('\n', i)
+    else:
+        i2 = html_doc.index('itemprop="page_data"')
+        i = html_doc.rfind('<meta ', 0, i2)
+    s = html_doc[i:i2]
+    key1 = 'content="'
+    s = s[ s.index(key1)+len(key1): -2]
+    ss = s.replace('&quot;', '"')
+
     tracks = []
-    for item in track_list.children:
-        if type(item)==bs4.element.NavigableString:
-            continue
+    JS = json.loads(ss)
+    if 'album_appearances' not in JS:
+        import pprint
+        pprint.pprint(JS)
+        exit(0)
+    d= JS['album_appearances']
+    for song in d:
         D = {}
-        id = item.get('data-id', '')
-        if len(id)==0:
-            continue
-        D['genius_id'] = str(item['data-id'])
-        title = get_element(item, 'span', 'class', 'song_title')
-        if title:
-            try:
-                D['title'] = str(title.text)
-            except:
-                D['title'] = title.text
-        number = get_element(item, 'span', 'class', 'track_number')
-        if number:
-            text = number.text.replace('.', '')
-            D['track_no'] = int(text)
-
+        D['genius_id'] = str(song['song']['id'])
+        D['title'] = str(song['song']['title'].encode('ascii', 'ignore'))
+        D['track_no'] = int(song['track_number'] or 100)
         tracks.append(D)
-
-    pagination = get_element(soup, 'div', 'class', 'pagination')
-    if pagination:
-        next = get_element(pagination, 'a', 'class', 'next_page')
-        if next and 'disabled' not in next['class']:
-            url = next['href']
-            if url[0]=='/':
-                url = 'https://genius.com' + url
-            tracks += get_tracklist(url)
-
     return tracks
 
 def embed_to_clean_text(text):
@@ -101,10 +96,10 @@ def embed_to_clean_text(text):
         i2 = body.index('>', i)
         i3 = body.index('</a>', i2)
         body = body[:i] + body[i2+1:i3] + body[i3+4:]
-        
+
     for a,b in REPLACEMENTS.iteritems():
         body = body.replace(a,b)
-        
+
     while True:
         m = SPLIT_LINE.search(body)
         if m:
@@ -156,7 +151,7 @@ def parse_characters(s, config):
         D.update(parse_characters(m.group(1), config))
         D['stage_direction'] = m.group(2)
         return D
-        
+
     if 'EXCEPT' in s:
         s, _, except_s = s.partition('EXCEPT')
         D['except'] = parse_character_list(except_s, config)
@@ -213,11 +208,11 @@ def parse_lyrics(s, config):
         m0 = CHAR_LINE.match(line)
         m1 = match_stage_direction(line)
         m2 = '<table' in line
-        
+
         if (m0 or m1 or m2) and len(lines)>0:
             create_entry(header, lines, sections)
             lines = []
-        
+
         if len(table)>0:
             if '</table>' in line:
                 table.append(line)
@@ -238,17 +233,17 @@ def parse_lyrics(s, config):
                 table.append(line)
         elif m0:
             header = {}
-            
+
             char_s = m0.group(1)
             m = search_stage_direction(char_s)
             if m:
                 char_s = char_s.replace(m.group(0), '').strip()
                 header['stage_direction'] = m.group(1)
-            
+
             if config.get('require_caps_characters', False) and LOWERCASE.search(char_s):
                 sd = header.get('stage_direction', '') + char_s
                 sections.append({'stage_direction': sd})
-                header = {}                
+                header = {}
             else:
                 header.update( parse_characters(char_s, config))
         elif m1:
@@ -261,6 +256,23 @@ def parse_lyrics(s, config):
 
     if len(lines)>0:
         create_entry(header, lines, sections)
+    thus_far = set()
+    both = None
+    for section in all_sections(sections):
+        chars = section.get('header', {}).get('characters', [])
+        if chars == ['BOTH']:
+            both = thus_far
+            break
+        thus_far.update(set(chars))
+
+    if both and len(both)!=2:
+        both = both - set(config.get('ignore_chars', []))
+    if both and len(both)==2:
+        print 'BOTH = ', both
+        for section in all_sections(sections):
+            chars = section.get('header', {}).get('characters', [])
+            if chars == ['BOTH']:
+                section['header']['characters'] = list(both)
     return sections
 
 import argparse, os.path
