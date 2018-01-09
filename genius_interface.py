@@ -4,13 +4,14 @@ from bs4 import BeautifulSoup
 import json
 import re, yaml
 import urllib2
-from util import all_sections
+from util import all_sections, section_map
 
 EMBED_PATTERN = 'http://genius.com/songs/%s/embed.js'
 JSON_PATTERN = re.compile("JSON\.parse\('(.*)'\)\)\s+document.write", re.DOTALL)
 SPLIT_LINE = re.compile('(\[[^\]]+)\n([^\]]+\])')
-CHAR_LINE = re.compile('\[([^\]]+)\]')
+CHAR_LINE = re.compile('\[([^\]:]+):?\]')
 LOWERCASE = re.compile('[a-z]')
+PAREN_SECTION = re.compile('\(([^\)]+)\)')
 STAGE_DIRECTION = [
     re.compile('\(<i>([^<]+)</i>\)'),
     re.compile('<i>\(([^\)]+)\)</i>'),
@@ -138,7 +139,7 @@ def parse_character_list(s, config):
             full_list.append(ss)
     return full_list
 
-def parse_characters(s, config):
+def parse_characters(s, config, parse_stage_directions=True):
     D = {}
     for direction in ['spoken', 'sung', 'on phone']:
         key = ', '+direction
@@ -148,8 +149,8 @@ def parse_characters(s, config):
     if s in config['char_translations']:
         s = config['char_translations'][s]
     m = PARENTHETICAL.match(s)
-    if m:
-        D.update(parse_characters(m.group(1), config))
+    if m and parse_stage_directions:
+        D.update(parse_characters(m.group(1), config, parse_stage_directions))
         D['stage_direction'] = m.group(2)
         return D
 
@@ -192,7 +193,70 @@ def search_stage_direction(line):
         if m:
             return m
 
-def parse_lyrics(s, config, global_char=None):
+def match_italic_chars(chars, tag):
+    if len(chars) != 2:
+        return None
+    italic_pattern = re.compile('<' + tag.upper() + '>([^<]+)</' + tag.upper() + '>')
+    m0 = italic_pattern.match(chars[0])
+    m1 = italic_pattern.match(chars[1])
+    if not m0 and m1:
+        return [chars[0]], [m1.group(1)]
+    return None
+
+def match_paren_chars(chars):
+    s = chars[-1]
+    m = PARENTHETICAL.match(s)
+    if m:
+        groups = map(str.strip, m.groups())
+        return chars[:-1] + [groups[0]], groups[1:]
+
+def quick_section(chars, line_str):
+    lines = [s for s in line_str.split('\n') if len(s.strip()) > 0]
+    if len(lines) == 0:
+        return None
+    return {'header': {'characters': chars}, 'lines': lines}
+
+def replace_pattern(section, char_translate_function, splitter_pattern):
+    replacements = []
+    chars = section.get('header', {}).get('characters', [])
+    new_chars = char_translate_function(chars)
+    if not new_chars:
+        replacements.append(section)
+        return replacements
+    for c_set in new_chars:
+        for i, char in enumerate(c_set):
+            if char in config['char_translations']:
+                c_set[i] = config['char_translations'][char]
+    print new_chars
+
+    full_lines = '\n'.join(section['lines'])
+    while len(full_lines.strip()) > 0:
+        m = splitter_pattern.search(full_lines)
+        if m:
+            a_section, b_section, full_lines = full_lines.partition(m.group(0))
+            #print a_section, 'x', b_section, 'y'
+            a = quick_section(new_chars[0], a_section)
+            if a:
+                replacements.append(a)
+            b = quick_section(new_chars[1], m.group(1))
+            if b:
+                replacements.append(b)
+        else:
+            replacements.append(quick_section(new_chars[0], full_lines))
+            break
+
+    return replacements
+
+
+def replace_italics(section, tag):
+    italic_section = re.compile('<' + tag + '>([^<]+)</' + tag + '>')
+    return replace_pattern(section, lambda x: match_italic_chars(x, tag), italic_section)
+
+def replace_parentheticals(section):
+    return replace_pattern(section, match_paren_chars, PAREN_SECTION)
+
+
+def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
     header = None
     sections = []
     lines = []
@@ -227,7 +291,7 @@ def parse_lyrics(s, config, global_char=None):
                         cols[i].append(cell.text)
                 chunks = []
                 for col in cols:
-                    chunks.append(parse_lyrics('\n'.join(col), config))
+                    chunks.append(parse_lyrics('\n'.join(col), config, global_char, parse_stage_directions))
                 sections.append({'simultaneous': chunks})
                 table = []
             else:
@@ -237,7 +301,7 @@ def parse_lyrics(s, config, global_char=None):
 
             char_s = m0.group(1)
             m = search_stage_direction(char_s)
-            if m:
+            if m and parse_stage_directions:
                 char_s = char_s.replace(m.group(0), '').strip()
                 header['stage_direction'] = m.group(1)
 
@@ -246,10 +310,10 @@ def parse_lyrics(s, config, global_char=None):
                 sections.append({'stage_direction': sd})
                 header = {}
             else:
-                header.update( parse_characters(char_s, config))
+                header.update( parse_characters(char_s, config, parse_stage_directions))
                 if global_char:
                     header['characters'] = [global_char]
-        elif m1:
+        elif parse_stage_directions and m1:
             sections.append({'stage_direction': m1.group(1)})
         elif m2:
             table.append(line)
@@ -279,6 +343,10 @@ def parse_lyrics(s, config, global_char=None):
             chars = section.get('header', {}).get('characters', [])
             if chars == ['BOTH']:
                 section['header']['characters'] = list(both)
+    for tag in ['i', 'b', 'em']:
+        sections = section_map(sections, lambda x: replace_italics(x, tag))
+    if not parse_stage_directions:
+        sections = section_map(sections, replace_parentheticals)
     return sections
 
 import argparse, os.path
@@ -321,5 +389,7 @@ for song in sorted(os.listdir(slug)):
             s = download_url(EMBED_PATTERN % song_config['genius_id'])
             song_config['raw_text'] = embed_to_clean_text(s)
     if args.parse and 'raw_text' in song_config:
-        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config, song_config.get('global_char', []))
+        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config,
+                                             song_config.get('global_char', []),
+                                             song_config.get('parse_stage_directions', True))
     yaml.dump(song_config, open(fn, 'w'))

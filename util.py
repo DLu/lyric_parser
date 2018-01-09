@@ -17,3 +17,19 @@ def all_sections(lyrics):
                     yield s2
         else:
             yield section
+
+def section_map(lyrics, function):
+    replacements = []
+    for section in lyrics:
+        if 'stage_direction' in section:
+            replacements.append(section)
+        elif 'simultaneous' in section:
+            ss = []
+            for s_list in section['simultaneous']:
+                for s2 in s_list:
+                    ss.append(function(s2))
+            replacements.append({'simultaneous': ss})
+        else:
+            replacements += function(section)
+
+    return replacements
