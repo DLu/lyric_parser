@@ -10,7 +10,9 @@ if 'char_keys' not in config:
 try:
     for filename, song in sorted(get_songs(sys.argv[1]).items()):
         if filename not in config.get('song_keys', {}):
-            x = raw_input(filename + ' abbrev? ')
+
+            #x = raw_input(filename + ' abbrev? ')
+            x = filename[3:-5]
             config['song_keys'][filename] = x
         key = config['song_keys'][filename]
         D = {}
@@ -25,6 +27,8 @@ try:
                     continue
                 if ch not in config.get('char_keys', {}):
                     x = raw_input(ch + ' abbrev? ')
+                    if len(x) == 0:
+                        x = ch
                     config['char_keys'][ch] = x
                 ckey = config['char_keys'][ch]
                 for line in section['lines']:
