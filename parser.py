@@ -2,7 +2,8 @@
 from bs4 import BeautifulSoup
 import re
 import yaml
-from util import all_sections, section_map
+import collections
+from util import all_sections, section_map, get_songs
 
 CHAR_LINE = re.compile('\[([^\]:]+):?\]')
 LOWERCASE = re.compile('[a-z]')
@@ -271,6 +272,11 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
     return sections
 
 
+def print_char_stats(stats):
+    for name, count in sorted(stats.items(), key=lambda x: -x[1]):
+        print '%5s %s' % (str(count), name)
+    print len(stats)
+
 if __name__ == '__main__':
     import argparse
     import os.path
@@ -304,3 +310,23 @@ if __name__ == '__main__':
                                                      song_config.get('global_char', []),
                                                      song_config.get('parse_stage_directions', True))
             yaml.dump(song_config, open(fn, 'w'))
+
+        OVERALL = collections.defaultdict(int)
+        for filename, song in sorted(get_songs(slug).items()):
+            print filename
+            D = collections.defaultdict(int)
+            for section in all_sections(song['lyrics']):
+                if 'header' not in section or 'characters' not in section['header']:
+                    continue
+                for ch in section['header']['characters']:
+                    if ch in config.get('ignore_chars', []):
+                        continue
+                    for line in section['lines']:
+                        D[ch] += len(line.split())
+                        OVERALL[ch] += len(line.split())
+
+            print_char_stats(D)
+
+        print
+        print slug
+        print_char_stats(OVERALL)
