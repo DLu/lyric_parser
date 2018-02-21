@@ -34,6 +34,30 @@ def split_by_tables(s):
 
 CHAR_LINE = re.compile('\[([^\]:]+):?\]')
 LOWERCASE = re.compile('[a-z]')
+
+def split_by_character_lines(s):
+    header = None
+    sections = []
+    lines = []
+
+    for line in s.split('\n'):
+        line = line.strip()
+        if len(line) == 0:
+            continue
+        m0 = CHAR_LINE.match(line)
+
+        if m0:
+            if len(lines) > 0:
+                sections.append((header, lines))
+                lines = []
+            header = m0.group(1)
+        else:
+            lines.append(line)
+    if len(lines) > 0:
+        sections.append((header, lines))
+    return sections
+
+
 PAREN_SECTION = re.compile('\(([^\)]+)\)')
 STAGE_DIRECTION = [
     re.compile('\(<i>([^<]+)</i>\)'),
@@ -205,6 +229,8 @@ def replace_parentheticals(section):
 
 
 def parse_simple_lyrics(s, config, global_char=None, parse_stage_directions=True):
+    x = split_by_character_lines(s)
+
     header = None
     sections = []
     lines = []
