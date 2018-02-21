@@ -5,6 +5,33 @@ import yaml
 import collections
 from util import all_sections, section_map, get_songs
 
+# Step 1: Parse Tables
+# Step 2: Parse Character Lines
+
+END_TABLE = '</table>'
+
+def split_by_tables(s):
+    pieces = []
+    while '<table' in s:
+        i = s.index('<table')
+        i2 = s.index(END_TABLE, i) + len(END_TABLE)
+        first = s[:i]
+        pieces.append(first)
+        table_s = s[i:i2]
+        table = BeautifulSoup(table_s, 'html.parser')
+        cols = []
+        for row in table.find_all('tr'):
+            for i, cell in enumerate(row.find_all('td')):
+                if i >= len(cols):
+                    cols.append([])
+                cols[i].append(cell.text)
+        pieces.append(['\n'.join(x) for x in cols])
+        s = s[i2 + 1:]
+    if len(s) > 0:
+        pieces.append(s)
+    return pieces
+
+
 CHAR_LINE = re.compile('\[([^\]:]+):?\]')
 LOWERCASE = re.compile('[a-z]')
 PAREN_SECTION = re.compile('\(([^\)]+)\)')
@@ -155,7 +182,6 @@ def replace_pattern(section, char_translate_function, splitter_pattern):
         m = splitter_pattern.search(full_lines)
         if m:
             a_section, b_section, full_lines = full_lines.partition(m.group(0))
-            #print a_section, 'x', b_section, 'y'
             a = quick_section(new_chars[0], a_section)
             if a:
                 replacements.append(a)
@@ -178,15 +204,10 @@ def replace_parentheticals(section):
     return replace_pattern(section, match_paren_chars, PAREN_SECTION)
 
 
-def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
+def parse_simple_lyrics(s, config, global_char=None, parse_stage_directions=True):
     header = None
     sections = []
     lines = []
-    table = []
-
-    for a, b in config.get('global_translations', {}).iteritems():
-        if a in s:
-            s = s.replace(a, b)
 
     for line in s.split('\n'):
         line = line.strip()
@@ -194,31 +215,12 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
             continue
         m0 = CHAR_LINE.match(line)
         m1 = match_stage_direction(line)
-        m2 = '<table' in line
 
-        if (m0 or m1 or m2) and len(lines) > 0:
+        if (m0 or m1) and len(lines) > 0:
             create_entry(header, lines, sections)
             lines = []
 
-        if len(table) > 0:
-            if '</table>' in line:
-                table.append(line)
-                table_s = '\n'.join(table)
-                table = BeautifulSoup(table_s, 'html.parser')
-                cols = []
-                for row in table.find_all('tr'):
-                    for i, cell in enumerate(row.find_all('td')):
-                        if i >= len(cols):
-                            cols.append([])
-                        cols[i].append(cell.text)
-                chunks = []
-                for col in cols:
-                    chunks.append(parse_lyrics('\n'.join(col), config, global_char, parse_stage_directions))
-                sections.append({'simultaneous': chunks})
-                table = []
-            else:
-                table.append(line)
-        elif m0:
+        if m0:
             header = {}
 
             char_s = m0.group(1)
@@ -237,11 +239,8 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
                     header['characters'] = [global_char]
         elif parse_stage_directions and m1:
             sections.append({'stage_direction': m1.group(1)})
-        elif m2:
-            table.append(line)
         else:
             lines.append(line)
-            #print line
 
     if global_char and header is None:
         header = {}
@@ -269,6 +268,23 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
         sections = section_map(sections, lambda x: replace_italics(x, tag))
     if not parse_stage_directions:
         sections = section_map(sections, replace_parentheticals)
+    return sections
+
+def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
+    for a, b in config.get('global_translations', {}).iteritems():
+        if a in s:
+            s = s.replace(a, b)
+
+    sections = []
+    for bit in split_by_tables(s):
+        if type(bit) == str:
+            sections += parse_simple_lyrics(bit, config, global_char, parse_stage_directions)
+        else:
+            chunks = []
+            for col in bit:
+                chunks.append(parse_simple_lyrics(col, config, global_char, parse_stage_directions))
+            sections.append({'simultaneous': chunks})
+
     return sections
 
 
@@ -313,9 +329,11 @@ if __name__ == '__main__':
 
         OVERALL = collections.defaultdict(int)
         for filename, song in sorted(get_songs(slug).items()):
+            if args.filter and args.filter not in filename:
+                continue
             print filename
             D = collections.defaultdict(int)
-            for section in all_sections(song['lyrics']):
+            for section in all_sections(song.get('lyrics', [])):
                 if 'header' not in section or 'characters' not in section['header']:
                     continue
                 for ch in section['header']['characters']:
