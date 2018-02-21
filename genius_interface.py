@@ -349,47 +349,51 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
         sections = section_map(sections, replace_parentheticals)
     return sections
 
-import argparse, os.path
-parser = argparse.ArgumentParser()
-parser.add_argument('config')
-parser.add_argument('filter', nargs='?')
-parser.add_argument('-l', '--list', action='store_true')
-parser.add_argument('-d', '--download_songs', action='store_true')
-parser.add_argument('-p', '--parse', action='store_true')
-parser.add_argument('-f', '--force', action='store_true')
 
-args = parser.parse_args()
-slug = os.path.splitext(args.config)[0]
-if not os.path.exists(slug):
-    os.mkdir(slug)
-config = yaml.load(open(args.config))
+if __name__ == '__main__':
+    import argparse
+    import os.path
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config', nargs='+')
+    parser.add_argument('--filter', nargs='?')
+    parser.add_argument('-l', '--list', action='store_true')
+    parser.add_argument('-d', '--download_songs', action='store_true')
+    parser.add_argument('-p', '--parse', action='store_true')
+    parser.add_argument('-f', '--force', action='store_true')
 
-# Rewrite Equivalent Chars
-if 'char_translations' not in config:
-    config['char_translations'] = {}
-for key, row in config.get('equivalent_chars', {}).iteritems():
-    if type(row)==str:
-        config['char_translations'][row] = key
-    else:
-        for a in row:
-            config['char_translations'][a] = key
+    args = parser.parse_args()
+    for config in args.config:
+        slug = os.path.splitext(config)[0]
+        if not os.path.exists(slug):
+            os.mkdir(slug)
+        config = yaml.load(open(config))
 
-if args.list:
-    for track in get_tracklist(config['url']):
-        fn = '%s/%02d-%s.yaml'%(slug, track['track_no'], re.sub(r'\W+', '', track['title']))
-        yaml.dump(track, open(fn, 'w'))
+        # Rewrite Equivalent Chars
+        if 'char_translations' not in config:
+            config['char_translations'] = {}
+        for key, row in config.get('equivalent_chars', {}).iteritems():
+            if type(row) == str:
+                config['char_translations'][row] = key
+            else:
+                for a in row:
+                    config['char_translations'][a] = key
 
-for song in sorted(os.listdir(slug)):
-    fn = os.path.join(slug, song)
-    if args.filter and args.filter not in fn:
-        continue
-    song_config = yaml.load(open(fn))
-    if args.download_songs:
-        if 'raw_text' not in song_config or args.force:
-            s = download_url(EMBED_PATTERN % song_config['genius_id'])
-            song_config['raw_text'] = embed_to_clean_text(s)
-    if args.parse and 'raw_text' in song_config:
-        song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config,
-                                             song_config.get('global_char', []),
-                                             song_config.get('parse_stage_directions', True))
-    yaml.dump(song_config, open(fn, 'w'))
+        if args.list:
+            for track in get_tracklist(config['url']):
+                fn = '%s/%02d-%s.yaml' % (slug, track['track_no'], re.sub(r'\W+', '', track['title']))
+                yaml.dump(track, open(fn, 'w'))
+
+        for song in sorted(os.listdir(slug)):
+            fn = os.path.join(slug, song)
+            if args.filter and args.filter not in fn:
+                continue
+            song_config = yaml.load(open(fn))
+            if args.download_songs:
+                if 'raw_text' not in song_config or args.force:
+                    s = download_url(EMBED_PATTERN % song_config['genius_id'])
+                    song_config['raw_text'] = embed_to_clean_text(s)
+            if args.parse and 'raw_text' in song_config:
+                song_config['lyrics'] = parse_lyrics(song_config['raw_text'], config,
+                                                     song_config.get('global_char', []),
+                                                     song_config.get('parse_stage_directions', True))
+            yaml.dump(song_config, open(fn, 'w'))
