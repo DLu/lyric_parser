@@ -16,14 +16,16 @@ STAGE_DIRECTION = [
 ]
 PARENTHETICAL = re.compile('(.*)\((.*)\)')
 
+
 def get_element(tag, subtype, attribute, value):
     for item in tag.find_all(subtype):
         if value in item.get(attribute, ''):
             return item
 
+
 def parse_character_list(s, config):
     if ':' in s:
-        s = s[s.index(':')+1:]
+        s = s[s.index(':') + 1:]
     if s in config['char_translations']:
         s = config['char_translations'][s]
 
@@ -37,7 +39,7 @@ def parse_character_list(s, config):
     full_list = []
     for ss in c:
         ss = ss.strip()
-        if len(ss)==0:
+        if len(ss) == 0:
             continue
         try:
             ss = str(ss)
@@ -49,12 +51,13 @@ def parse_character_list(s, config):
             full_list.append(ss)
     return full_list
 
+
 def parse_characters(s, config, parse_stage_directions=True):
     D = {}
     for direction in ['spoken', 'sung', 'on phone']:
-        key = ', '+direction
+        key = ', ' + direction
         if key in s:
-            s = s.replace(key, ' (%s)'%direction)
+            s = s.replace(key, ' (%s)' % direction)
     s = s.upper()
     if s in config['char_translations']:
         s = config['char_translations'][s]
@@ -68,9 +71,10 @@ def parse_characters(s, config, parse_stage_directions=True):
         s, _, except_s = s.partition('EXCEPT')
         D['except'] = parse_character_list(except_s, config)
     c = parse_character_list(s, config)
-    if len(c)>0:
+    if len(c) > 0:
         D['characters'] = c
     return D
+
 
 def create_entry(header, lines, sections):
     for i, line in enumerate(lines):
@@ -81,15 +85,16 @@ def create_entry(header, lines, sections):
     entry = {'lines': lines}
     if header is None:
         header = {}
-    if 'characters' not in header and len(sections)>0:
+    if 'characters' not in header and len(sections) > 0:
         last_header = sections[-1].get('header', {})
-        if 'characters' not in last_header and len(sections)>1:
+        if 'characters' not in last_header and len(sections) > 1:
             last_header = sections[-2].get('header', {})
         if 'characters' in last_header:
-            header['characters'] =  list(last_header['characters'])
-    if len(header)>0:
-        entry['header']=header
+            header['characters'] = list(last_header['characters'])
+    if len(header) > 0:
+        entry['header'] = header
     sections.append(entry)
+
 
 def match_stage_direction(line):
     for pattern in STAGE_DIRECTION:
@@ -97,11 +102,13 @@ def match_stage_direction(line):
         if m:
             return m
 
+
 def search_stage_direction(line):
     for pattern in STAGE_DIRECTION:
         m = pattern.search(line)
         if m:
             return m
+
 
 def match_italic_chars(chars, tag):
     if len(chars) != 2:
@@ -113,6 +120,7 @@ def match_italic_chars(chars, tag):
         return [chars[0]], [m1.group(1)]
     return None
 
+
 def match_paren_chars(chars):
     s = chars[-1]
     m = PARENTHETICAL.match(s)
@@ -120,11 +128,13 @@ def match_paren_chars(chars):
         groups = map(str.strip, m.groups())
         return chars[:-1] + [groups[0]], groups[1:]
 
+
 def quick_section(chars, line_str):
     lines = [s for s in line_str.split('\n') if len(s.strip()) > 0]
     if len(lines) == 0:
         return None
     return {'header': {'characters': chars}, 'lines': lines}
+
 
 def replace_pattern(section, char_translate_function, splitter_pattern):
     replacements = []
@@ -162,6 +172,7 @@ def replace_italics(section, tag):
     italic_section = re.compile('<' + tag + '>([^<]+)</' + tag + '>')
     return replace_pattern(section, lambda x: match_italic_chars(x, tag), italic_section)
 
+
 def replace_parentheticals(section):
     return replace_pattern(section, match_paren_chars, PAREN_SECTION)
 
@@ -172,23 +183,23 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
     lines = []
     table = []
 
-    for a,b in config.get('global_translations', {}).iteritems():
+    for a, b in config.get('global_translations', {}).iteritems():
         if a in s:
-            s = s.replace(a,b)
+            s = s.replace(a, b)
 
     for line in s.split('\n'):
         line = line.strip()
-        if len(line)==0:
+        if len(line) == 0:
             continue
         m0 = CHAR_LINE.match(line)
         m1 = match_stage_direction(line)
         m2 = '<table' in line
 
-        if (m0 or m1 or m2) and len(lines)>0:
+        if (m0 or m1 or m2) and len(lines) > 0:
             create_entry(header, lines, sections)
             lines = []
 
-        if len(table)>0:
+        if len(table) > 0:
             if '</table>' in line:
                 table.append(line)
                 table_s = '\n'.join(table)
@@ -220,7 +231,7 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
                 sections.append({'stage_direction': sd})
                 header = {}
             else:
-                header.update( parse_characters(char_s, config, parse_stage_directions))
+                header.update(parse_characters(char_s, config, parse_stage_directions))
                 if global_char:
                     header['characters'] = [global_char]
         elif parse_stage_directions and m1:
@@ -234,7 +245,7 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
     if global_char and header is None:
         header = {}
         header['characters'] = [global_char]
-    if len(lines)>0:
+    if len(lines) > 0:
         create_entry(header, lines, sections)
     thus_far = set()
     both = None
@@ -245,9 +256,9 @@ def parse_lyrics(s, config, global_char=None, parse_stage_directions=True):
             break
         thus_far.update(set(chars))
 
-    if both and len(both)!=2:
+    if both and len(both) != 2:
         both = both - set(config.get('ignore_chars', []))
-    if both and len(both)==2:
+    if both and len(both) == 2:
         print 'BOTH = ', both
         for section in all_sections(sections):
             chars = section.get('header', {}).get('characters', [])
