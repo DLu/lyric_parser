@@ -9,6 +9,8 @@ if 'char_keys' not in config:
     config['char_keys'] = {}
 try:
     for filename, song in sorted(get_songs(sys.argv[1]).items()):
+        if 'lyrics' not in song:
+            continue
         if filename not in config.get('song_keys', {}):
 
             #x = raw_input(filename + ' abbrev? ')
@@ -28,7 +30,7 @@ try:
                 if ch not in config.get('char_keys', {}):
                     x = raw_input(ch + ' abbrev? ')
                     if len(x) == 0:
-                        x = ch
+                        x = ch.replace(' ', '_')
                     config['char_keys'][ch] = x
                 ckey = config['char_keys'][ch]
                 for line in section['lines']:
@@ -42,4 +44,4 @@ try:
 finally:
     yaml.dump(config, open(sys.argv[1]+'.yaml', 'w'))
 print yaml.dump(show_info)
-yaml.dump(show_info, open('/home/dlu/Desktop/Hamiltunes/shows/' + sys.argv[1] + '.yaml', 'w'))
+yaml.dump(show_info, open('/home/dlu/Projects/Hamiltunes/shows/' + sys.argv[1] + '.yaml', 'w'))
